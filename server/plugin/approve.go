@@ -22,8 +22,8 @@ func (p *Plugin) httpHandleApprove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workFlowID := fmt.Sprintf("%v", requestData.Context["WorkflowID"])
-	jobs, err := circle.GetWorkflowJobs(circleciToken, fmt.Sprintf("%v", requestData.Context["WorkflowID"]))
+	workflowID := fmt.Sprintf("%v", requestData.Context["WorkflowID"])
+	jobs, err := circle.GetWorkflowJobs(circleciToken, workflowID)
 
 	if err != nil {
 		p.API.LogError("Error occurred while getting workflow jobs", err)
@@ -31,14 +31,16 @@ func (p *Plugin) httpHandleApprove(w http.ResponseWriter, r *http.Request) {
 		p.sendEphemeralResponse(&model.CommandArgs{}, "Cannot approve the workflow from mattermost. Please go [here](http://app.circleci.com)")
 		return
 	}
+
 	var approvalRequestID string
 	for _, job := range *jobs {
 		if job.ApprovalRequestId != "" {
-			fmt.Println(fmt.Sprintf("Job with Approval request Id %s"), job.Id)
+			p.API.LogDebug("Job with Approval", "request Id ", job.Id)
 			approvalRequestID = fmt.Sprintf("%v", job.ApprovalRequestId)
+			break
 		}
 	}
-	_, err = circle.ApproveJob(circleciToken, approvalRequestID, workFlowID)
+	_, err = circle.ApproveJob(circleciToken, approvalRequestID, workflowID)
 
 	if err != nil {
 		p.API.LogError("Error occurred while approving", err)
@@ -47,6 +49,4 @@ func (p *Plugin) httpHandleApprove(w http.ResponseWriter, r *http.Request) {
 	} else {
 		p.sendEphemeralResponse(&model.CommandArgs{}, "Successfully approved :+1:")
 	}
-
-
 }

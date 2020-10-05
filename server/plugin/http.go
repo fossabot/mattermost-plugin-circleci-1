@@ -12,7 +12,7 @@ const (
 
 	routeAutocomplete        = "/autocomplete"
 	subrouteFollowedProjects = "/followedProjects"
-	routeApporveJob                   = "/job/approve/"
+	routeApproveJob          = "/job/approve"
 )
 
 func (p *Plugin) initializeRouter() {
@@ -22,7 +22,7 @@ func (p *Plugin) initializeRouter() {
 
 	autocompleteRouter := p.router.PathPrefix(routeAutocomplete).Subrouter()
 	autocompleteRouter.HandleFunc(subrouteFollowedProjects, p.autocompleteFollowedProject).Methods("GET")
-	p.router.HandleFunc(routeApporveJob, p.httpHandleApprove).Methods("POST")
+	p.router.HandleFunc(routeApproveJob, p.httpHandleApprove).Methods("POST")
 }
 
 // ServeHTTP allows the plugin to implement the http.Handler interface. Requests destined for the
