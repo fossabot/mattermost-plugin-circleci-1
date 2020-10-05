@@ -15,11 +15,28 @@ func (p *Plugin) httpHandleApprove(w http.ResponseWriter, r *http.Request) {
 	if !exists {
 		http.NotFound(w, r)
 	}
+
 	requestData := model.PostActionIntegrationRequestFromJson(r.Body)
 	if requestData == nil {
 		p.API.LogError("Empty request data")
-		p.sendEphemeralResponse(&model.CommandArgs{}, "Cannot approve the workflow from mattermost. Please go [here](http://app.circleci.com)")
 		return
+	}
+
+	originalPost, appErr := p.API.GetPost(requestData.PostId)
+	if appErr != nil {
+		p.API.LogError("Unable to get post", "postID", requestData.PostId)
+	} else {
+		// TODO : remove the button
+
+		if _, appErr := p.API.UpdatePost(originalPost); appErr != nil {
+			p.API.LogError("Unable to update post", "postID", originalPost.Id)
+		}
+	}
+
+	responsePost := &model.Post{
+		ChannelId: requestData.ChannelId,
+		RootId:    requestData.PostId,
+		UserId:    p.botUserID,
 	}
 
 	workflowID := fmt.Sprintf("%v", requestData.Context["WorkflowID"])
@@ -27,8 +44,14 @@ func (p *Plugin) httpHandleApprove(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		p.API.LogError("Error occurred while getting workflow jobs", err)
+
 		// TODO: replace with actual workflow URL to approve in circle as a fallback
-		p.sendEphemeralResponse(&model.CommandArgs{}, "Cannot approve the workflow from mattermost. Please go [here](http://app.circleci.com)")
+
+		responsePost.Message = "Cannot approve the workflow from mattermost. Please go [here](http://app.circleci.com)"
+		if _, appErr := p.API.CreatePost(responsePost); appErr != nil {
+			p.API.LogError("Error when creating post", "appError", appErr)
+		}
+
 		return
 	}
 
@@ -40,26 +63,23 @@ func (p *Plugin) httpHandleApprove(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+
 	_, err = circle.ApproveJob(circleciToken, approvalRequestID, workflowID)
-
-	responsePost := &model.Post{
-		ChannelId: requestData.ChannelId,
-		RootId:    requestData.PostId,
-		UserId:    p.botUserID,
-	}
-
-	// TODO update the original post to remove the button
-
 	if err != nil {
-		p.API.LogError("Error occurred while approving", err)
+		p.API.LogWarn("Error occurred while approving", "error", err)
 		// TODO: replace with actual workflow URL to approve in circle as a fallback
 		responsePost.Message = "Cannot approve the workflow from mattermost. Please go [here](http://app.circleci.com)"
 	} else {
-		responsePost.Message = "Workflow successfully approved :+1:"
+		user, appErr := p.API.GetUser(userID)
+		if appErr != nil {
+			p.API.LogError("Unable to get user", "userID", userID)
+			responsePost.Message = "Workflow successfully approved :+1:"
+		} else {
+			responsePost.Message = fmt.Sprintf("Workflow successfully approved by @%s :+1:", user.Username)
+		}
 	}
 
-	_, appErr := p.API.CreatePost(responsePost)
-	if appErr != nil {
+	if _, appErr := p.API.CreatePost(responsePost); appErr != nil {
 		p.API.LogError("Error when creating post", "appError", appErr)
 	}
 }
