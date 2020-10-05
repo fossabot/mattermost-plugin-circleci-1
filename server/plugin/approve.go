@@ -42,11 +42,24 @@ func (p *Plugin) httpHandleApprove(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err = circle.ApproveJob(circleciToken, approvalRequestID, workflowID)
 
+	responsePost := &model.Post{
+		ChannelId: requestData.ChannelId,
+		RootId:    requestData.PostId,
+		UserId:    p.botUserID,
+	}
+
+	// TODO update the original post to remove the button
+
 	if err != nil {
 		p.API.LogError("Error occurred while approving", err)
 		// TODO: replace with actual workflow URL to approve in circle as a fallback
-		p.sendEphemeralResponse(&model.CommandArgs{}, "Cannot approve the workflow from mattermost. Please go [here](http://app.circleci.com)")
+		responsePost.Message = "Cannot approve the workflow from mattermost. Please go [here](http://app.circleci.com)"
 	} else {
-		p.sendEphemeralResponse(&model.CommandArgs{}, "Successfully approved :+1:")
+		responsePost.Message = "Workflow successfully approved :+1:"
+	}
+
+	_, appErr := p.API.CreatePost(responsePost)
+	if appErr != nil {
+		p.API.LogError("Error when creating post", "appError", appErr)
 	}
 }
